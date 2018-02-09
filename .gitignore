@@ -4,3 +4,7 @@ output/*
 .idea
 experiments/*
 logs/*
+input/
+encodings/
+__pycache__/
+*~
