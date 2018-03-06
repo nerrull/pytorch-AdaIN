@@ -15,8 +15,8 @@ from PIL import Image
 
 
 resolution = 256
-amplitude =30.
-layer = 4
+amplitude =1.
+layer = 6
 
 decoder_path = "models/decoder.pth"
 vgg_path = "models/vgg_normalised.pth"
@@ -76,13 +76,13 @@ for activated_neuron_index in range(num_neurons):
     mask_array[:,neuron_index,:,:] = 0
     mask_tensor = torch.from_numpy(mask_array).cuda()
 
-    image = network.get_channel_activation(input_variable, mask_tensor,layer, amplitude)
+    image = network.get_channel_activation(input_variable, mask_tensor,layer, amplitude, neuron_index)
     frame = image.cpu().data.numpy()[0]
     frame = np.transpose(frame,  (1,2,0))
 
 
     t = time.time() - t
-    print("Took {} seconds to extract encoding".format(t))
+    print("Took {} seconds to generate image".format(t))
     frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR)
     cv.putText(frame, "{}".format(neuron_index), (15,15), cv.FONT_HERSHEY_PLAIN, 1.,(1.,1.,1.))
     cv.imshow("Neuron activation", frame)

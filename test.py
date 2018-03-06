@@ -62,7 +62,7 @@ parser.add_argument('--vgg', type=str, default='models/vgg_normalised.pth')
 parser.add_argument('--decoder', type=str, default='models/decoder.pth')
 
 # Additional options
-parser.add_argument('--content_size', type=int, default=512,
+parser.add_argument('--content_size', type=int, default=1000,
                     help='New (minimum) size for the content image, \
                     keeping the original size if set to 0')
 parser.add_argument('--style_size', type=int, default=512,

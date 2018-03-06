@@ -110,6 +110,7 @@ class Net(nn.Module):
         self.decoder = decoder
         self.mse_loss = nn.MSELoss()
 
+
     # extract relu1_1, relu2_1, relu3_1, relu4_1 from input image
     def encode_with_intermediate(self, input):
         results = [input]
@@ -133,8 +134,38 @@ class Net(nn.Module):
         for i in range(4):
             input = getattr(self, 'enc_{:d}'.format(i + 1))(input)
             if layer_index ==(i+1):
-                input = input.data.masked_fill_(mask, 0.)
+                total = torch.sum(input.data,1)
+                input.data = input.data.masked_fill_(mask, 0.)
         return input
+
+
+    def encode_mask_layer_sum_activations(self, input, layer_index, neuron_index):
+        for i in range(4):
+            input = getattr(self, 'enc_{:d}'.format(i + 1))(input)
+            if layer_index ==(i+1):
+                total = torch.sum(input.data,1)
+                max = torch.max(total)
+                neuron_activation =input.data[0, neuron_index, :, :]
+                max_value = torch.max(neuron_activation)/2 +0.0001
+                neuron_activation = neuron_activation*max/max_value
+                input_shape = input.shape
+                del max_value, max, total, input
+                input = Variable(torch.zeros(input_shape)).cuda()
+                input[0, neuron_index, :, :] = neuron_activation
+                del neuron_activation
+        return input
+
+    # def encode_mask_layer_sum_activations(self, input, mask_layer_index, neuron_index):
+    #
+    #     for layer_index, layer in enumerate(self.enc_layers):
+    #         input = getattr(self, 'enc_{:d}'.format(layer_index + 1))(input)
+    #         if mask_layer_index ==(layer_index+1):
+    #             total = torch.sum(input.data,1)
+    #             #total =input.data[0, neuron_index, :, :]
+    #             masked_values = Variable(torch.zeros(input.shape)).cuda()
+    #             masked_values[0, neuron_index, :, :] = total
+    #             input = masked_values
+    #     return input
 
 
     def calc_content_loss(self, input, target):
@@ -192,8 +223,10 @@ class Net(nn.Module):
                 conv_index+=1
         return input
 
-    def get_channel_activation(self, input, mask, layer, amplitude):
-        input = self.encode_mask_layer(input, layer, mask)
+    def get_channel_activation(self, input,  layer, amplitude, neuron_index):
+        #input = self.encode_mask_layer(input, layer, mask)
+        input = self.encode_mask_layer_sum_activations(input, layer, neuron_index)
+
         #encoding = self.encode(input_variable)
 
         input = input.mul(amplitude)
@@ -206,6 +239,49 @@ class Net(nn.Module):
         # masked_variable = Variable(masked_variable, volatile=True).unsqueeze(0)
 
         input = self.decoder(input)
+
+        max = input.max()
+        min = input.min()
+        input = input.sub(min).div(max-min+0.000001)
+        return input
+
+
+
+    def decode_mask_layer_sum_activations(self, input, mask_layer_index, neuron_index):
+        num_layers = len(list(self.decoder.children()))
+        for layer_index, layer in enumerate(self.decoder.children()):
+            if  (num_layers -layer_index) ==mask_layer_index:
+                print( "Layer {} -{}".format(layer_index, layer.__repr__()))
+
+                # if ("Conv" not in layer.__repr__()):
+                #     print( "Layer {}, sepecified but it isn't a conv layer it is {}".format(layer_index, layer.__repr__()))
+                #     raise  Exception
+                total = torch.sum(input.data, 1)
+                max = torch.max(total)
+                neuron_activation = input.data[0, neuron_index, :, :]
+                max_value = torch.max(neuron_activation) / 2 + 0.0001
+                neuron_activation = neuron_activation * max / max_value
+                input_shape = input.shape
+                del max_value, max, total, input
+                input = Variable(torch.zeros(input_shape)).cuda()
+                input[0, neuron_index, :, :] = neuron_activation
+            input = layer(input)
+        return input
+
+
+    def get_decoder_channel_activation(self, input, layer, amplitude, neuron_index):
+        #input = self.encode_mask_layer(input, layer, mask)
+        #input = self.encode(input)
+        input = self.encode_mask_layer_sum_activations(input, layer, neuron_index)
+        # encoding_numpy =encoding.cpu().data.numpy()[0]
+        # masked_encoding = np.zeros_like(encoding_numpy, dtype=np.float32)
+        # masked_encoding[channel,:,:] = encoding_numpy[channel,:,:]*amplitude
+        #
+        # masked_variable =  torch.from_numpy(masked_encoding)
+        # masked_variable = masked_variable.cuda()
+        # masked_variable = Variable(masked_variable, volatile=True).unsqueeze(0)
+
+        input = self.decode_mask_layer_sum_activations(input, layer, neuron_index)
 
         max = input.max()
         min = input.min()
